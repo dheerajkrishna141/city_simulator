@@ -124,7 +124,6 @@ class City:
         return False
     
     def remove_cell(self, x: int, y: int) -> bool:
-        """Remove an object from the specified grid position."""
         if not self.is_valid_position(x, y):
             return False
         
@@ -132,14 +131,12 @@ class City:
         if obj is None:
             return False
         
-        # Update counts based on object type
         if isinstance(obj, Zone):
             self.zone_counts[obj.zone_type] -= 1
         elif isinstance(obj, Building):
             if obj.building_type in self.building_counts:
                 self.building_counts[obj.building_type] -= 1
         elif isinstance(obj, Infrastructure):
-            # Remove from emergency services if applicable
             if obj.infrastructure_type == 'fire_station':
                 if (x, y) in self.emergency_services['fire_stations']:
                     self.emergency_services['fire_stations'].remove((x, y))

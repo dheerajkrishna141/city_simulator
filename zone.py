@@ -84,11 +84,9 @@ class Zone:
         return base_color
     
     def _brighten_color(self, hex_color: str, factor: float) -> str:
-        """Brighten a hex color by the given factor (0-1)."""
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         
-        # Mix with white
         r = min(255, int(r + (255 - r) * factor))
         g = min(255, int(g + (255 - g) * factor))
         b = min(255, int(b + (255 - b) * factor))
@@ -96,7 +94,6 @@ class Zone:
         return f"#{r:02x}{g:02x}{b:02x}"
     
     def _darken_color(self, hex_color: str, factor: float) -> str:
-        """Darken a hex color by the given factor (0-1)."""
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         
@@ -107,12 +104,9 @@ class Zone:
         return f"#{r:02x}{g:02x}{b:02x}"
     
     def _lighten_color(self, hex_color: str, factor: float) -> str:
-        """Lighten a hex color by the given factor (0-1)."""
-        # Simple color lightening - mix with white
         hex_color = hex_color.lstrip('#')
         r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         
-        # Mix with white
         r = int(r + (255 - r) * factor)
         g = int(g + (255 - g) * factor)
         b = int(b + (255 - b) * factor)

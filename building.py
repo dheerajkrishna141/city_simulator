@@ -129,27 +129,16 @@ class Building:
         return int(base_cost * condition_modifier)
     
     def update_condition(self, city, time_passed: int = 1):
-        """
-        Update building condition over time.
+        d = 0.1 * time_passed
         
-        Args:
-            city: City instance for context
-            time_passed: Time units that have passed
-        """
-        # Buildings degrade over time
-        degradation_rate = 0.1 * time_passed
-        
-        # Faster degradation if city has high pollution
         if city.pollution > 50:
-            degradation_rate *= 1.5
+            d *= 1.5
         
-        # Slower degradation if city has good maintenance budget
         if city.money > 100000:
-            degradation_rate *= 0.8
+            d *= 0.8
         
-        self.condition = max(0, self.condition - degradation_rate)
+        self.condition = max(0, self.condition - d)
         
-        # Update efficiency based on condition
         if self.condition > 80:
             self.efficiency = 1.0
         elif self.condition > 50:
