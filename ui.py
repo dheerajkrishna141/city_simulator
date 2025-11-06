@@ -393,14 +393,30 @@ class CitySimulationUI:
     
     def _canvas_to_grid(self, canvas_x: int, canvas_y: int) -> Tuple[int, int]:
         """Convert canvas coordinates to grid coordinates."""
-        grid_x = int((canvas_x + self.scroll_x) / (self.cell_size * self.zoom_level))
-        grid_y = int((canvas_y + self.scroll_y) / (self.cell_size * self.zoom_level))
+        # Get the current scroll position from the canvas
+        scroll_x = self.canvas.canvasx(0)
+        scroll_y = self.canvas.canvasy(0)
+        
+        # Convert to grid coordinates - account for zoom level
+        grid_x = int((canvas_x + scroll_x) / (self.cell_size * self.zoom_level))
+        grid_y = int((canvas_y + scroll_y) / (self.cell_size * self.zoom_level))
+        
+        # Ensure we're within bounds
+        grid_x = max(0, min(grid_x, self.city.width - 1))
+        grid_y = max(0, min(grid_y, self.city.height - 1))
+        
         return grid_x, grid_y
     
     def _grid_to_canvas(self, grid_x: int, grid_y: int) -> Tuple[int, int]:
         """Convert grid coordinates to canvas coordinates."""
-        canvas_x = int(grid_x * self.cell_size * self.zoom_level - self.scroll_x)
-        canvas_y = int(grid_y * self.cell_size * self.zoom_level - self.scroll_y)
+        # Get the current scroll position from the canvas
+        scroll_x = self.canvas.canvasx(0)
+        scroll_y = self.canvas.canvasy(0)
+        
+        # Convert to canvas coordinates - account for zoom level
+        canvas_x = int(grid_x * self.cell_size * self.zoom_level - scroll_x)
+        canvas_y = int(grid_y * self.cell_size * self.zoom_level - scroll_y)
+        
         return canvas_x, canvas_y
     
     def _on_canvas_click(self, event):

@@ -98,9 +98,11 @@ class Infrastructure:
             'cost': 20000,
             'maintenance': 250,
             'safety_range': 10,
-            'description': 'Fire protection'
-        }
+            'fire_response_range': 8,
+            'description': 'Fire protection and emergency response'
+        },
     }
+
     
     def __init__(self, x: int, y: int, infrastructure_type: str):
         """

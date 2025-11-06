@@ -148,8 +148,21 @@ class Simulation:
         if random.random() < self.disaster_probability:
             self._trigger_random_event()
         
+        # Natural disasters (separate from economic events)
+        if random.random() < 0.005:  # 0.5% chance per day
+            self._trigger_natural_disaster()
+        
         # Update infrastructure condition
         self._update_infrastructure_daily()
+        
+        # Update zone operating states based on desirability
+        self.city.update_zone_states(self.total_days_simulated)
+        
+        # Update disasters
+        self.city.update_disasters()
+        
+        # Calculate traffic
+        self.city.calculate_traffic()
         
         # Zone development attempts (small chance daily)
         if random.random() < 0.1:  # 10% chance per day
@@ -380,6 +393,22 @@ class Simulation:
             money_boost = int(self.city.population * random.uniform(10, 25))
             self.city.money += money_boost
             print(f"Technology boom! +${money_boost:,}")
+    
+    def _trigger_natural_disaster(self):
+        """Trigger a natural disaster."""
+        # Find a random location for the disaster
+        x = random.randint(0, self.city.width - 1)
+        y = random.randint(0, self.city.height - 1)
+        
+        # Choose disaster type
+        disaster_types = ['fire', 'tornado']
+        disaster_type = random.choice(disaster_types)
+        
+        # Random severity (1-3)
+        severity = random.randint(1, 3)
+        
+        # Add disaster to city
+        self.city.add_disaster(disaster_type, x, y, severity)
     
     def _event_pollution_incident(self):
         """Pollution incident event."""

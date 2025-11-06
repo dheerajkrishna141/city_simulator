@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "my-mcp-server-8d00f8bb": {
+      "url": "https://baz.co/mcp",
+      "type": "http"
+    },
+
+    "baz": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://baz.co/mcp"]
+    }
+  },
+  "inputs": []
+}

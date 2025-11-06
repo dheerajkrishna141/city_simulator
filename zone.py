@@ -15,7 +15,7 @@ class Zone:
     # Zone types and their characteristics
     ZONE_TYPES = {
         'residential': {
-            'color': '#90EE90',  # Light green
+            'color': '#98FB98',  # Pale green - more vibrant
             'max_development': 5,
             'population_per_level': 50,
             'power_required': True,
@@ -29,7 +29,7 @@ class Zone:
             'water_required': False
         },
         'industrial': {
-            'color': '#F4A460',  # Sandy brown
+            'color': '#DEB887',  # Burlywood - warmer brown
             'max_development': 4,
             'jobs_per_level': 40,
             'pollution_per_level': 5,
@@ -51,6 +51,9 @@ class Zone:
         self.zone_type = zone_type
         self.development_level = 0  # 0 = undeveloped, max varies by type
         self.last_growth_check = 0  # Game time when last checked for growth
+        self.desirability_score = 0.0  # Desirability score (0-100)
+        self.operating_state = "normal"  # normal, thriving, struggling, abandoned
+        self.last_state_change = 0  # Game time when last state changed
         
         # Validate zone type
         if zone_type not in self.ZONE_TYPES:
@@ -60,11 +63,48 @@ class Zone:
     
     def get_color(self) -> str:
         """Get the display color for this zone type."""
+        base_color = self.properties['color']
+        
+        # Adjust color based on development level
         if self.development_level == 0:
             # Undeveloped zones are lighter
-            base_color = self.properties['color']
-            return self._lighten_color(base_color, 0.5)
-        return self.properties['color']
+            base_color = self._lighten_color(base_color, 0.5)
+        
+        # Adjust color based on operating state
+        if self.operating_state == "thriving":
+            # Thriving zones are brighter
+            base_color = self._brighten_color(base_color, 0.2)
+        elif self.operating_state == "struggling":
+            # Struggling zones are darker
+            base_color = self._darken_color(base_color, 0.3)
+        elif self.operating_state == "abandoned":
+            # Abandoned zones are very dark
+            base_color = self._darken_color(base_color, 0.6)
+        
+        return base_color
+    
+    def _brighten_color(self, hex_color: str, factor: float) -> str:
+        """Brighten a hex color by the given factor (0-1)."""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        # Mix with white
+        r = min(255, int(r + (255 - r) * factor))
+        g = min(255, int(g + (255 - g) * factor))
+        b = min(255, int(b + (255 - b) * factor))
+        
+        return f"#{r:02x}{g:02x}{b:02x}"
+    
+    def _darken_color(self, hex_color: str, factor: float) -> str:
+        """Darken a hex color by the given factor (0-1)."""
+        hex_color = hex_color.lstrip('#')
+        r, g, b = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
+        r = int(r * (1 - factor))
+        g = int(g * (1 - factor))
+        b = int(b * (1 - factor))
+        
+        return f"#{r:02x}{g:02x}{b:02x}"
     
     def _lighten_color(self, hex_color: str, factor: float) -> str:
         """Lighten a hex color by the given factor (0-1)."""
@@ -78,6 +118,188 @@ class Zone:
         b = int(b + (255 - b) * factor)
         
         return f"#{r:02x}{g:02x}{b:02x}"
+    
+    def calculate_desirability(self, city) -> float:
+        """
+        Calculate desirability score based on proximity to amenities and commute distance.
+        
+        Args:
+            city: City instance to check amenities against
+        
+        Returns:
+            Desirability score (0-100)
+        """
+        score = 50.0  # Base score
+        
+        # Proximity to parks (positive impact)
+        park_bonus = self._calculate_park_proximity(city)
+        score += park_bonus
+        
+        # Proximity to schools (positive impact)
+        school_bonus = self._calculate_school_proximity(city)
+        score += school_bonus
+        
+        # Proximity to power plants (positive impact)
+        power_bonus = self._calculate_power_proximity(city)
+        score += power_bonus
+        
+        # Commute distance to other zones (negative impact for long distances)
+        commute_penalty = self._calculate_commute_penalty(city)
+        score -= commute_penalty
+        
+        # Traffic penalty (negative impact for high traffic areas)
+        traffic_penalty = self._calculate_traffic_penalty(city)
+        score -= traffic_penalty
+        
+        # Ensure score is within bounds
+        score = max(0.0, min(100.0, score))
+        
+        return score
+    
+    def _calculate_park_proximity(self, city) -> float:
+        """Calculate bonus from proximity to parks."""
+        bonus = 0.0
+        max_distance = 10  # Maximum distance to consider
+        
+        for y in range(city.height):
+            for x in range(city.width):
+                cell = city.get_cell(x, y)
+                if cell and hasattr(cell, 'infrastructure_type') and cell.infrastructure_type == 'park':
+                    distance = self._manhattan_distance(self.x, self.y, x, y)
+                    if distance <= max_distance:
+                        # Closer parks give more bonus
+                        bonus += (max_distance - distance) * 2.0
+        
+        return min(20.0, bonus)  # Cap at 20 points
+    
+    def _calculate_school_proximity(self, city) -> float:
+        """Calculate bonus from proximity to schools."""
+        bonus = 0.0
+        max_distance = 8  # Maximum distance to consider
+        
+        for y in range(city.height):
+            for x in range(city.width):
+                cell = city.get_cell(x, y)
+                if cell and hasattr(cell, 'infrastructure_type') and cell.infrastructure_type == 'school':
+                    distance = self._manhattan_distance(self.x, self.y, x, y)
+                    if distance <= max_distance:
+                        # Closer schools give more bonus
+                        bonus += (max_distance - distance) * 1.5
+        
+        return min(15.0, bonus)  # Cap at 15 points
+    
+    def _calculate_power_proximity(self, city) -> float:
+        """Calculate bonus from proximity to power plants."""
+        bonus = 0.0
+        max_distance = 12  # Maximum distance to consider
+        
+        for y in range(city.height):
+            for x in range(city.width):
+                cell = city.get_cell(x, y)
+                if cell and hasattr(cell, 'infrastructure_type') and cell.infrastructure_type == 'power_plant':
+                    distance = self._manhattan_distance(self.x, self.y, x, y)
+                    if distance <= max_distance:
+                        # Closer power plants give more bonus
+                        bonus += (max_distance - distance) * 1.0
+        
+        return min(10.0, bonus)  # Cap at 10 points
+    
+    def _calculate_commute_penalty(self, city) -> float:
+        """Calculate penalty from long commute distances to other zones."""
+        penalty = 0.0
+        total_zones = 0
+        
+        for y in range(city.height):
+            for x in range(city.width):
+                cell = city.get_cell(x, y)
+                if isinstance(cell, Zone) and cell != self:
+                    distance = self._road_distance_to_zone(city, x, y)
+                    if distance > 0:
+                        penalty += distance * 0.5  # 0.5 points per unit of distance
+                        total_zones += 1
+        
+        if total_zones > 0:
+            penalty = penalty / total_zones  # Average penalty
+        
+        return min(25.0, penalty)  # Cap at 25 points
+    
+    def _manhattan_distance(self, x1: int, y1: int, x2: int, y2: int) -> int:
+        """Calculate Manhattan distance between two points."""
+        return abs(x1 - x2) + abs(y1 - y2)
+    
+    def _road_distance_to_zone(self, city, target_x: int, target_y: int) -> int:
+        """
+        Calculate road distance to another zone using A* pathfinding.
+        Returns -1 if no path exists.
+        """
+        if (self.x, self.y) not in city.road_network or (target_x, target_y) not in city.road_network:
+            return -1
+        
+        # Simple BFS to find shortest road path
+        visited = set()
+        queue = [(self.x, self.y, 0)]  # (x, y, distance)
+        
+        while queue:
+            x, y, distance = queue.pop(0)
+            
+            if (x, y) == (target_x, target_y):
+                return distance
+            
+            if (x, y) in visited:
+                continue
+            
+            visited.add((x, y))
+            
+            # Check all 4 directions
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                new_x, new_y = x + dx, y + dy
+                if (new_x, new_y) in city.road_network and (new_x, new_y) not in visited:
+                    queue.append((new_x, new_y, distance + 1))
+        
+        return -1  # No path found
+    
+    def _calculate_traffic_penalty(self, city) -> float:
+        """Calculate penalty from high traffic levels."""
+        penalty = 0.0
+        
+        # Check traffic level at this zone's position
+        traffic_level = city.get_traffic_level(self.x, self.y)
+        
+        # Traffic penalty increases with traffic level
+        if traffic_level > 0:
+            penalty = min(15.0, traffic_level * 2.0)  # Cap at 15 points
+        
+        return penalty
+    
+    def update_operating_state(self, city, current_time: int):
+        """
+        Update the operating state based on desirability score and time.
+        
+        Args:
+            city: City instance
+            current_time: Current game time
+        """
+        # Only update every 7 days (weekly)
+        if current_time - self.last_state_change < 7:
+            return
+        
+        # Calculate current desirability
+        self.desirability_score = self.calculate_desirability(city)
+        
+        # Determine new state based on desirability
+        if self.desirability_score >= 80:
+            new_state = "thriving"
+        elif self.desirability_score >= 60:
+            new_state = "normal"
+        elif self.desirability_score >= 30:
+            new_state = "struggling"
+        else:
+            new_state = "abandoned"
+        
+        # Update state if changed
+        if new_state != self.operating_state:
+            self.operating_state = new_state
+            self.last_state_change = current_time
     
     def can_develop(self, city) -> bool:
         """

@@ -63,6 +63,15 @@ class City:
             'power_plants': 0,
             'water_facilities': 0
         }
+        
+        # Disaster and traffic systems
+        self.active_disasters = []  # List of active disasters
+        self.disaster_history = []  # History of past disasters
+        self.traffic_levels = {}  # Traffic levels for each road segment
+        self.emergency_services = {
+            'fire_stations': [],
+            'police_stations': []
+        }
     
     def is_valid_position(self, x: int, y: int) -> bool:
         """Check if the given position is within city bounds."""
@@ -105,6 +114,14 @@ class City:
         elif isinstance(obj, Building):
             if obj.building_type in self.building_counts:
                 self.building_counts[obj.building_type] -= 1
+        elif isinstance(obj, Infrastructure):
+            # Remove from emergency services if applicable
+            if obj.infrastructure_type == 'fire_station':
+                if (x, y) in self.emergency_services['fire_stations']:
+                    self.emergency_services['fire_stations'].remove((x, y))
+            elif obj.infrastructure_type == 'police_station':
+                if (x, y) in self.emergency_services['police_stations']:
+                    self.emergency_services['police_stations'].remove((x, y))
         
         self.grid[y][x] = None
         return True
@@ -162,6 +179,10 @@ class City:
             self.road_network.add((x, y))
         elif infra_type in ['school', 'hospital']:
             self.building_counts[infra_type + 's'] += 1
+        elif infra_type == 'fire_station':
+            self.emergency_services['fire_stations'].append((x, y))
+        elif infra_type == 'police_station':
+            self.emergency_services['police_stations'].append((x, y))
         
         return True
     
@@ -282,6 +303,168 @@ class City:
         
         # Update happiness
         self.calculate_happiness()
+    
+    def update_zone_states(self, current_time: int):
+        """
+        Update the operating states of all zones based on desirability.
+        
+        Args:
+            current_time: Current game time in days
+        """
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self.grid[y][x]
+                if isinstance(cell, Zone):
+                    cell.update_operating_state(self, current_time)
+    
+    def add_disaster(self, disaster_type: str, x: int, y: int, severity: int = 1):
+        """
+        Add a new disaster to the city.
+        
+        Args:
+            disaster_type: 'fire' or 'tornado'
+            x, y: Location of the disaster
+            severity: Severity level (1-5)
+        """
+        import random
+        disaster = {
+            'type': disaster_type,
+            'x': x,
+            'y': y,
+            'severity': severity,
+            'duration': severity * 3,  # Days the disaster lasts
+            'damage_radius': severity * 2,  # Radius of damage
+            'active': True
+        }
+        
+        self.active_disasters.append(disaster)
+        print(f"🚨 {disaster_type.title()} disaster at ({x}, {y})! Severity: {severity}")
+    
+    def update_disasters(self):
+        """Update all active disasters."""
+        import random
+        for disaster in self.active_disasters[:]:  # Copy list to avoid modification during iteration
+            if disaster['active']:
+                disaster['duration'] -= 1
+                
+                # Check if disaster should end
+                if disaster['duration'] <= 0:
+                    disaster['active'] = False
+                    self.disaster_history.append(disaster)
+                    print(f"✅ {disaster['type'].title()} disaster at ({disaster['x']}, {disaster['y']}) has been contained!")
+                
+                # Apply damage to nearby buildings
+                self._apply_disaster_damage(disaster)
+    
+    def _apply_disaster_damage(self, disaster):
+        """Apply damage to buildings within disaster radius."""
+        import random
+        x, y = disaster['x'], disaster['y']
+        radius = disaster['damage_radius']
+        damage_chance = 0.3  # 30% chance of damage per day
+        
+        for dy in range(-radius, radius + 1):
+            for dx in range(-radius, radius + 1):
+                if dx*dx + dy*dy <= radius*radius:  # Circular damage area
+                    check_x, check_y = x + dx, y + dy
+                    if self.is_valid_position(check_x, check_y):
+                        cell = self.get_cell(check_x, check_y)
+                        if cell and hasattr(cell, 'condition'):
+                            if hasattr(cell, 'infrastructure_type'):
+                                # Infrastructure damage
+                                if random.random() < damage_chance:
+                                    damage = disaster['severity'] * 10
+                                    cell.condition = max(0, cell.condition - damage)
+                                    print(f"💥 {disaster['type'].title()} damaged {cell.infrastructure_type} at ({check_x}, {check_y})")
+    
+    def calculate_traffic(self):
+        """Calculate traffic levels based on commutes between zones."""
+        self.traffic_levels = {}
+        
+        # Find all zones
+        zones = []
+        for y in range(self.height):
+            for x in range(self.width):
+                cell = self.get_cell(x, y)
+                if isinstance(cell, Zone) and cell.development_level > 0:
+                    zones.append((x, y, cell))
+        
+        # Calculate commutes between zones
+        for i, (x1, y1, zone1) in enumerate(zones):
+            for j, (x2, y2, zone2) in enumerate(zones):
+                if i != j:
+                    # Calculate commute path
+                    path = self._find_commute_path(x1, y1, x2, y2)
+                    if path:
+                        # Add traffic to each road segment in the path
+                        for road_pos in path:
+                            if road_pos in self.traffic_levels:
+                                self.traffic_levels[road_pos] += 1
+                            else:
+                                self.traffic_levels[road_pos] = 1
+    
+    def _find_commute_path(self, start_x: int, start_y: int, end_x: int, end_y: int) -> list:
+        """Find the shortest path between two points using roads."""
+        if (start_x, start_y) not in self.road_network or (end_x, end_y) not in self.road_network:
+            return []
+        
+        # Simple BFS to find shortest road path
+        visited = set()
+        queue = [(start_x, start_y, [])]  # (x, y, path)
+        
+        while queue:
+            x, y, path = queue.pop(0)
+            
+            if (x, y) == (end_x, end_y):
+                return path + [(x, y)]
+            
+            if (x, y) in visited:
+                continue
+            
+            visited.add((x, y))
+            
+            # Check all 4 directions
+            for dx, dy in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                new_x, new_y = x + dx, y + dy
+                if (new_x, new_y) in self.road_network and (new_x, new_y) not in visited:
+                    queue.append((new_x, new_y, path + [(x, y)]))
+        
+        return []
+    
+    def get_traffic_level(self, x: int, y: int) -> int:
+        """Get traffic level at a specific position."""
+        return self.traffic_levels.get((x, y), 0)
+    
+    def get_disaster_risk(self, x: int, y: int) -> float:
+        """Get disaster risk at a specific position."""
+        risk = 0.0
+        
+        for disaster in self.active_disasters:
+            if disaster['active']:
+                distance = abs(x - disaster['x']) + abs(y - disaster['y'])
+                if distance <= disaster['damage_radius']:
+                    risk += disaster['severity'] * (disaster['damage_radius'] - distance) / disaster['damage_radius']
+        
+        return min(100.0, risk)
+    
+    def get_emergency_coverage(self, x: int, y: int) -> dict:
+        """Get emergency service coverage at a specific position."""
+        coverage = {
+            'fire_station': False,
+            'police_station': False
+        }
+        
+        for fire_station in self.emergency_services['fire_stations']:
+            distance = abs(x - fire_station[0]) + abs(y - fire_station[1])
+            if distance <= 8:  # Fire station coverage radius
+                coverage['fire_station'] = True
+        
+        for police_station in self.emergency_services['police_stations']:
+            distance = abs(x - police_station[0]) + abs(y - police_station[1])
+            if distance <= 12:  # Police station coverage radius
+                coverage['police_station'] = True
+        
+        return coverage
     
     def save_to_file(self, filename: str) -> bool:
         """
