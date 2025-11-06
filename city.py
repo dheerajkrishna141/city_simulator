@@ -98,9 +98,32 @@ class City:
         
         self.grid[y][x] = obj
         return True
+
+    def update(self):
+        """
+        Main simulation update method. Call this regularly from the main loop.
+        
+        Returns:
+            True if time advanced, False otherwise
+        """
+        if not self.running or self.paused:
+            return False
+        
+        current_time = time.time()
+        time_elapsed = current_time - self.real_time_last_update
+        
+        # Check if enough real time has passed for a game day
+        days_to_advance = int(time_elapsed * self.simulation_speed)
+        
+        if days_to_advance > 0:
+            self.real_time_last_update = current_time
+            for _ in range(min(days_to_advance, 30)):  # Limit to 30 days per update
+                self._advance_one_day()
+            return True
+        
+        return False
     
     def remove_cell(self, x: int, y: int) -> bool:
-        """Remove an object from the specified grid position."""
         if not self.is_valid_position(x, y):
             return False
         
@@ -108,14 +131,12 @@ class City:
         if obj is None:
             return False
         
-        # Update counts based on object type
         if isinstance(obj, Zone):
             self.zone_counts[obj.zone_type] -= 1
         elif isinstance(obj, Building):
             if obj.building_type in self.building_counts:
                 self.building_counts[obj.building_type] -= 1
         elif isinstance(obj, Infrastructure):
-            # Remove from emergency services if applicable
             if obj.infrastructure_type == 'fire_station':
                 if (x, y) in self.emergency_services['fire_stations']:
                     self.emergency_services['fire_stations'].remove((x, y))

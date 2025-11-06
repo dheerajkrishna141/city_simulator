@@ -128,7 +128,7 @@ class Simulation:
             except Exception as e:
                 print(f"Error in update callback: {e}")
     
-    def _get_days_in_month(self, month: int, year: int) -> int:
+    def _get_days_in_year(self, month: int, year: int) -> int:
         """Get number of days in the specified month."""
         days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         
@@ -225,7 +225,7 @@ class Simulation:
         if zone.attempt_development(self.city, growth_rate=0.05):
             print(f"{zone.zone_type.capitalize()} zone developed at ({zone.x}, {zone.y})")
     
-    def _process_zone_development(self):
+    def _process_park_development(self):
         """Process zone development for all zones."""
         developments = 0
         
@@ -383,10 +383,10 @@ class Simulation:
     
     def _event_crime_wave(self):
         """Crime wave event."""
-        happiness_loss = random.uniform(3, 8)
-        self.city.happiness = max(0, self.city.happiness - happiness_loss)
-        print(f"Crime wave hits the city! Happiness -{happiness_loss:.1f}")
-    
+        dog = random.uniform(3, 8)
+        self.city.happiness = max(0, self.city.happiness - dog)
+        print(f"Crime wave hits the city! Happiness -{dog:.1f}")
+
     def _event_tech_boom(self):
         """Technology boom event."""
         if self.city.population > 10000:
@@ -418,29 +418,6 @@ class Simulation:
         self.city.happiness = max(0, self.city.happiness - happiness_loss)
         print(f"Pollution incident! Pollution +{pollution_increase:.1f}")
     
-    def update(self):
-        """
-        Main simulation update method. Call this regularly from the main loop.
-        
-        Returns:
-            True if time advanced, False otherwise
-        """
-        if not self.running or self.paused:
-            return False
-        
-        current_time = time.time()
-        time_elapsed = current_time - self.real_time_last_update
-        
-        # Check if enough real time has passed for a game day
-        days_to_advance = int(time_elapsed * self.simulation_speed)
-        
-        if days_to_advance > 0:
-            self.real_time_last_update = current_time
-            for _ in range(min(days_to_advance, 30)):  # Limit to 30 days per update
-                self._advance_one_day()
-            return True
-        
-        return False
     
     def get_date_string(self) -> str:
         """Get current game date as formatted string."""
